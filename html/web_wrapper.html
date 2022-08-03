@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>{{ page_title }}</title>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <link rel="shortcut icon" type="image/png" href="/static/img/swalletconn.png"/>
+        <script type="application/javascript" src="/static/js/jquery.min.js"></script>
+        <script type="application/javascript" src="/static/js/js.cookie.min.js"></script>
+        <script type="application/javascript" src="/static/js/myalgo.min.js"></script>
+        <script type="module" src="/static/js/wcpack.js"></script>
+        <script type="application/javascript" src="/static/js/WalletWrapper.js"></script>
+
+        <script type="application/javascript">
+            const ALGOD_TOKEN = '{{ ALGOD_NODE_TOKEN }}';
+            const ALGOD_SERVER = '{{ ALGOD_NODE_URL }}';
+            const ALGOD_HEADERS = ''
+            const LEDGER = 'TestNet';
+            
+            var add_notice = (message, status) => {
+                let notice = $('<div />').text(message).addClass('notice').addClass(status).appendTo('#notice_container');
+                notice.click((e)=>{
+                    $(notice).fadeOut("fast");
+                });
+                notice.hide().fadeIn("fast");
+                setTimeout(()=>{ $(notice).fadeOut("slow")}, 6000);
+            }
+
+            $(document).ready(()=>{
+                let wallet_choice = Cookies.get('wallet_choice');
+                if (wallet_choice) {
+                    window.wallet_wrapper = new WalletWrapper(wallet_choice);
+                }
+            });
+        </script>
+        <style type="text/css">
+            .section {
+                border: 1px solid #000000;
+                border-radius: 15px;
+                padding: 15px;
+                margin: auto;
+                margin-top: 20px;
+            }
+            .section h3 {
+                margin-top: 0px;
+            }
+            .disconnect {
+                position: absolute;
+                right: 15px;
+            }
+            #notice_container {
+                position: absolute;
+                top: 50px;
+                width: 100%;
+            }
+            .notice {
+                width: 500px;
+                margin: auto;
+                border: 2px solid;
+                border-radius: 15px;
+                padding: 15px;
+                display: none;
+                cursor: pointer;
+            }
+            .okay {
+                border-color: green;
+                background-color: lightgreen;
+            }
+            .fail {
+                border-color: red;
+                background-color: pink;
+            }
+        </style>            
+        {% block extend_header %}{% endblock %}
+    </head>
+
+    <body>
+        <div id="notice_container"></div>
+        {% if request.ctx.user %}
+            <div class="disconnect"><a href="{{ request.app.url_for('auth.disconnect') }}">Disconnect</a></div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </body>
+</html>

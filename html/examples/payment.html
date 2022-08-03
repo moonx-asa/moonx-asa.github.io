@@ -1,0 +1,129 @@
+{% extends web_wrapper %}
+{% set page_title = 'Payment Example' %}
+
+{% block extend_header %}
+    <style type="text/css">
+        .section {
+            width: 600px;
+        }
+        .section > div {
+            padding-bottom: 15px;
+        }
+        .button_wrapper {
+            width: 100px;
+            margin: auto;
+        }
+        #payment {
+            background-color: lightgreen;
+            border: 1px solid limegreen;
+            border-radius: 5px;
+            padding: 5px;
+            cursor: pointer;
+        }
+        #payment:hover {
+            background-color: limegreen;
+        }
+
+        .explanation { display: none; }
+        .explanation img {
+            width: 100%;
+        }
+    </style>
+    <script type="application/javascript">
+
+        var get_algo_txn = async() => {
+            $.ajax({
+                'type': 'POST',
+                'dataType': 'json',
+                'url': '{{ request.app.url_for("examples.get_payment_txn") }}',
+                'success': async(response) => {
+                    if (response.status == 'ok') {
+                        let signed_txns = await window.wallet_wrapper.sign([
+                            {txn: response['algo_txn']}
+                        ]);
+                        let signed_algo_txn_b64 = window.wallet_wrapper.get_blob(signed_txns[0]);
+                        await process_algo_txn(signed_algo_txn_b64);
+                    } else {    
+                        // TODO: Handle status 'fail' errors
+                        console.log(response.message)
+                    }
+                },
+                'error': (err) => {
+                    // Handle HTTP Errors
+                    console.log(err);
+                }
+            });
+        };
+
+        var process_algo_txn = async(signed_algo_txn_b64) => {
+            $.ajax({
+                'type': 'POST',
+                'dataType': 'json',
+                'url': '{{ request.app.url_for("examples.process_payment_txn") }}',
+                'data': {
+                    'signed_algo_txn_b64': signed_algo_txn_b64,
+                },
+                'success': async(response) => {
+                    if (response.status == 'ok') {
+                        add_notice("Successfully sent transaction!", "okay");
+                    } else {
+                        add_notice(response.message, "fail");
+                    }
+                },
+                'error': (err) => {
+                    // Handle HTTP Errors
+                    console.log(err);
+                }
+            });
+        };
+
+        $(document).ready(function() {
+
+            $('#payment').click(async function(event) {
+                event.preventDefault();
+                $(this).hide();
+                try {
+                    await get_algo_txn();
+                } catch(error) {
+                    console.log(error);
+                }
+            });
+
+            $('#explain').click((event)=>{
+                event.preventDefault();
+                $('.explanation').show();
+                $('#explain').hide();
+            });
+            $('#hide_explain').click((event)=>{
+                event.preventDefault();
+                $('.explanation').hide();
+                $('#explain').show();
+            });
+        });
+    </script>
+{% endblock %}
+
+{% block content %}
+    <div class="section">
+        <h3>Payment Example</h3>
+        <div><a id="explain" href="#">See Explanation</a></div>
+        <div class="explanation"><a id="hide_explain" href="#">Hide Explanation</a></div>
+        <div class="explanation">
+            This example uses AJAX to request a payment transaction object from the python backend. This object 
+            is created and returned (in msgpack format) to the frontend where it is submitted to the user (via WalletWrapper)
+            to be signed.
+        </div>
+        <div class="explanation">
+            Upon signing, the frontend returns the signed transaction (still in msgpack format) back to the python backend where 
+            it is sent to the Algorand node to be processed. The backend waits for confirmation, handles any database calls and 
+            then notifies the frontend of the completion.
+        </div>
+        <div class="explanation">
+            <img src="/static/img/flowchart.png" />
+        </div>
+        <div>Clicking this button will prompt you to sign a single 1 Algo payment.</div>
+        <div class="button_wrapper"><input type="button" id="payment" value="Payment Example" /></div>
+        <div id="results"></div>
+    </div>
+{% endblock %}
+

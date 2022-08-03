@@ -1,0 +1,174 @@
+{% extends web_wrapper %}
+{% set page_title = 'Connect a Wallet' %}
+
+{% block extend_header %}
+    <script
+        src="https://unpkg.com/algosdk@1.13.0-beta.2/dist/browser/algosdk.min.js"
+        integrity="sha384-ArIfXzQ4ARpkRJIn6EKgtqbJaPXhEEvNoguSPToHMg2VNl2rNc6QuuOTyDX7Krps"
+        crossorigin="anonymous"
+    ></script>
+    <style type="text/css">
+        .section { width: 400px; }
+        #account_picker { 
+            display: none;
+            width: 400px; 
+        }
+        #auth_message {
+            display: none;
+            width: 400px;
+        }
+        .choices {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around;
+        }
+        .choice img {
+            width: 96px;
+            height: auto;
+        }
+
+        #account_picker .account {
+            border: 1px solid grey;
+            border-radius: 5px;
+            padding: 5px;
+            margin: auto;
+            margin-bottom: 5px;
+            cursor: pointer;
+        }
+        #account_picker .account:hover {
+            background-color: #EEFFEE;
+            border-color: darkgrey;
+        }
+
+    </style>
+    <script type="application/javascript">
+        const REDIRECT = "{{ request.app.url_for('examples.index') }}";
+
+        window.algodClient = new algosdk.Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_HEADERS);
+
+        function byteArrayToBase64(buffer) {
+            let binary = '';
+            let bytes = new Uint8Array(buffer);
+            let len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        let wallet_click = async(wallet_choice) => {
+            $('#wallet_list').hide();
+            
+            // build new wrapper
+            window.wallet_wrapper = new WalletWrapper(wallet_choice, LEDGER);
+            Cookies.set('wallet_choice', wallet_choice);
+
+            // connect and set on-connect callback
+            await window.wallet_wrapper.connect(async(accounts) => {
+                if (accounts.length == 1) {
+                    window.wallet_wrapper.set_address(accounts[0]);
+                    await auth_check();
+
+                } else if (accounts.length >= 1) {
+                    $('#account_picker .account').remove();
+                    for (let i in accounts) {
+                        let wallet_addr = accounts[i];
+                        let div = $('<div class="account">' + wallet_addr.substring(0,36) + '...</div>')
+                            .append('<input type="hidden" value="' + wallet_addr + '" />')
+                            .appendTo('#account_picker').click(pick_account);
+                    }
+                    $('#account_picker').show();
+                }
+            });
+        };
+
+        let pick_account = async(chosen_account) => {
+            let address = $(chosen_account.currentTarget).children('input').val();
+            try {
+                $('#account_picker').hide();
+                window.wallet_wrapper.set_address(address);
+                await auth_check();
+
+            } catch(err) {
+                console.log(err);
+                $('#wallet_list').show();
+            }
+            
+        };
+
+        let auth_check = async() => {
+            $('#auth_message').show();
+
+            let params = await window.algodClient.getTransactionParams().do();
+            const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+                suggestedParams: params,
+                from: window.wallet_wrapper.address,
+                to: window.wallet_wrapper.address,
+                amount: 0
+            });
+
+            let signed = await window.wallet_wrapper.sign([
+                { txn: byteArrayToBase64(txn.toByte()) } 
+            ]);
+
+            let blob = null;
+            if (signed instanceof Array) {
+                blob = window.wallet_wrapper.get_blob(signed[0]);
+            } else {
+                blob = window.wallet_wrapper.get_blob(signed);
+            }
+            $.ajax({
+                'type': 'POST',
+                'dataType': 'json',
+                'data': {
+                    blob: blob,
+                    addr: window.wallet_wrapper.address
+                },
+                'url': '/verify',
+                'success': function(data) {
+                    window.location.href = REDIRECT;
+                    return;
+                },
+                'error': function(err) {
+                    console.log(err);
+                }
+            });
+        };
+    </script>
+{% endblock %}
+
+{% block content %}
+    <div class="section">
+        <div>Notice: This example site uses TESTNET</div>
+        <div>To switch to testnet using Pera wallet, select:</div>
+        <div><b>Settings &gt; Developer Settings &gt; Node Settings</b></div>
+    </div>
+    
+    <div class="section" id="wallet_list">
+        <h3>Choose a way to connect</h3>
+        <div class="choices">
+            <div class="choice">
+                <a href="#" onclick="wallet_click('pera'); return false;"><img src="/static/img/pera.png" /></a>
+            </div>
+            <div class="choice">
+                <a href="#" onclick="wallet_click('myalgo'); return false;"><img src="/static/img/myalgo.png" /></a>
+            </div>
+            <div class="choice">
+                <a href="#" onclick="wallet_click('algosigner'); return false"><img src="/static/img/algosigner.png" /></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="account_picker">
+        <h3>Choose a wallet</h3>
+    </div>
+
+    <div class="section" id="auth_message">
+        <h3>Authentication Check</h3>
+        <div>
+            To authenticate your address, please review and sign the null transaction. This step is to prove 
+            your ownership of this account. The transaction will not processed and will not cost you anything. 
+        </div>
+    </div>
+{% endblock %}
+
